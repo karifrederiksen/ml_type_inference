@@ -1,0 +1,16 @@
+{
+  "name": "ml_type_inference",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ordered-collections": "git+https://github.com/karifrederiksen/ordered-collections.git",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4"
+  }
+}
