@@ -69,7 +69,7 @@ function pMap<A, B>(p: Parser<A>, f: (x: A) => B): Parser<B> {
     }
 }
 
-function pFilter<A>(p: Parser<A>, f: (x: A) => boolean): Parser<A> {
+function pAllowOnly<A>(p: Parser<A>, f: (x: A) => boolean): Parser<A> {
     return s => {
         const res = p(s)
         if (res.ok && f(res.val)) {
@@ -91,27 +91,20 @@ function pOneOf<A>(ps: readonly Parser<A>[]): Parser<A> {
     }
 }
 
-const pDigit: Parser<number> = (s) => {
-    const [x, rest] = streamNext(s)
-    if (/^\d$/.test(x)) {
-        return ok(rest, Number(x))
-    }
-    return err
+function pSucceed<A>(v: A): Parser<A> {
+    return s => ok(s, v)
 }
-const pChar: Parser<string> = (s) => {
+
+const pAny: Parser<string> = (s) => {
     const [x, rest] = streamNext(s)
-    if (/^[a-z_]$/.test(x)) {
+    if (x != "") {
         return ok(rest, x)
     }
     return err
 }
-const pSpace: Parser<null> = (s) => {
-    const [x, rest] = streamNext(s)
-    if (x === " " || x === "\t" || x === "\n" || x === "\r") {
-        return ok(rest, null)
-    }
-    return err
-}
+const pDigit: Parser<number> = pMap(pAllowOnly(pAny, x => /^\d$/.test(x)), Number)
+const pChar: Parser<string> = pAllowOnly(pAny, x => /^[a-z_]$/.test(x))
+const pSpace: Parser<string> = pAllowOnly(pAny, x => /^[ \t\n\r]$/.test(x))
 
 function pReplace<A>(val: A, p: Parser<unknown>): Parser<A> {
     return s => {
@@ -151,6 +144,12 @@ function pSeq<A, B, C>(ps: readonly [Parser<A>, Parser<B>, Parser<C>]): Parser<r
 function pSeq<A, B, C, D>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>]): Parser<readonly [A, B, C, D]>
 function pSeq<A, B, C, D, E>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>]): Parser<readonly [A, B, C, D, E]>
 function pSeq<A, B, C, D, E, F>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>, Parser<F>]): Parser<readonly [A, B, C, D, E, F]>
+function pSeq<A, B, C, D, E, F, G>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>, Parser<F>, Parser<G>]): Parser<readonly [A, B, C, D, E, F, G]>
+function pSeq<A, B, C, D, E, F, G, H>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>, Parser<F>, Parser<G>, Parser<H>]): Parser<readonly [A, B, C, D, E, F, G, H]>
+function pSeq<A, B, C, D, E, F, G, H, J>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>, Parser<F>, Parser<G>, Parser<H>, Parser<J>]): Parser<readonly [A, B, C, D, E, F, G, H, J]>
+function pSeq<A, B, C, D, E, F, G, H, J, K>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>, Parser<F>, Parser<G>, Parser<H>, Parser<J>, Parser<K>]): Parser<readonly [A, B, C, D, E, F, G, H, J, K]>
+function pSeq<A, B, C, D, E, F, G, H, J, K, L>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>, Parser<F>, Parser<G>, Parser<H>, Parser<J>, Parser<K>, Parser<L>]): Parser<readonly [A, B, C, D, E, F, G, H, J, K, L]>
+function pSeq<A, B, C, D, E, F, G, H, J, K, L, M>(ps: readonly [Parser<A>, Parser<B>, Parser<C>, Parser<D>, Parser<E>, Parser<F>, Parser<G>, Parser<H>, Parser<J>, Parser<K>, Parser<L>, Parser<M>]): Parser<readonly [A, B, C, D, E, F, G, H, J, K, L, M]>
 function pSeq<A>(ps: readonly Parser<A>[]): Parser<readonly A[]> {
     return s => {
         const vals: A[] = []
@@ -181,11 +180,10 @@ const pInt: Parser<number> = pMap(pList1(pDigit), ns => ns.reduce((sum, n) => su
 
 const RESERVED_SYMBOLS: readonly string[] = ["let", "in", "fn", "true", "false"]
 
-const pSymbol: Parser<string> = pFilter(pMap(pList1(pChar), xs => xs.join("")), x => !RESERVED_SYMBOLS.includes(x))
+const pSymbol: Parser<string> = pAllowOnly(pMap(pList1(pChar), xs => xs.join("")), x => !RESERVED_SYMBOLS.includes(x))
 
-const spaces0: Parser<null> = pMap(pList0(pSpace), _ => null)
-const spaces1: Parser<null> = pMap(pList1(pSpace), _ => null)
-
+const pSpaces0: Parser<null> = pReplace(null, pList0(pSpace))
+const pSpaces1: Parser<null> = pReplace(null, pList1(pSpace))
 
 const pBoolExpr: Parser<AST.Expr> = pMap(pOneOf([
     pReplace(true, pExact("true")),
@@ -196,53 +194,59 @@ const pVarExpr: Parser<AST.Expr> = pMap(pSymbol, AST.eVar)
 
 const pTupExpr: Parser<AST.Expr> = pMap(pSeq([
     pExact("("),
+    pSpaces0,
     pOneOf([
-        pMap(pSeq([
-            pInterspersed(pSeq([spaces0, pExact(","), spaces0]), pExpr),
-            pExact(")"),
-        ]), x => AST.eTup(x[0])),
-        pMap(pExact(")"), _ => AST.eTup([])),
+        pInterspersed(pSeq([pSpaces0, pExact(","), pSpaces0]), pExpr),
+        pSucceed([]),
     ]),
-]), x => x[1])
+    pSpaces0,
+    pExact(")"),
+]), x => AST.eTup(x[2]))
 
 function pLamExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pMap(pSeq([
-        pSeq([
-            pExact("fn"),
-            spaces1,
-        ]),
-        pSymbol,
-        pSeq([
-            spaces0,
-            pExact("->"),
-            spaces0,
-        ]),
+        pExact("fn"),
+        pSpaces1,
+        pPattern,
+        pSpaces0,
+        pExact("->"),
+        pSpaces0,
         pExpr,
-    ]), x => AST.eLam(x[1], x[3]))
+    ]), x => AST.eLam(x[2], x[6]))
     
     return p(s)
 }
 
+const pVarPat: Parser<AST.Pattern> = pMap(pSymbol, AST.pVar)
+const pTupPat: Parser<AST.Pattern> = pMap(pSeq([
+    pExact("("),
+    pSpaces0,
+    pOneOf([
+        pInterspersed(pSeq([pSpaces0, pExact(","), pSpaces0]), pPattern),
+        pSucceed([]),
+    ]),
+    pSpaces0,
+    pExact(")"),
+]), x => AST.pTup(x[2]))
+
+function pPattern(s: TextStream): ParserResult<AST.Pattern> {
+    return pOneOf([pVarPat, pTupPat])(s)
+}
+
 function pLetExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pMap(pSeq([
-        pSeq([
-            pExact("let"),
-            spaces1,
-        ]),
-        pSymbol,
-        pSeq([
-            spaces0,
-            pExact("="),
-            spaces0,
-        ]),
+        pExact("let"),
+        pSpaces1,
+        pPattern,
+        pSpaces0,
+        pExact("="),
+        pSpaces0,
         pExpr,
-        pSeq([
-            spaces1,
-            pExact("in"),
-            spaces1,
-        ]),
+        pSpaces1,
+        pExact("in"),
+        pSpaces1,
         pExpr,
-    ]), x => AST.eLet(x[1], x[3], x[5]))
+    ]), x => AST.eLet(x[2], x[6], x[10]))
     
     return p(s)
 }
@@ -256,7 +260,7 @@ function pApplOrVarExpr(s: TextStream): ParserResult<AST.Expr> {
         pTupExpr,
         pVarExpr,
     ]);
-    const p2 = pMap(pInterspersed(spaces1, p), exprs => {
+    const p2 = pMap(pInterspersed(pSpaces1, p), exprs => {
         let e = exprs[0]
         for (let i = 1; i < exprs.length; i++) {
             e = AST.eApp(e, exprs[i])
@@ -283,9 +287,9 @@ function pExpr(s: TextStream): ParserResult<AST.Expr> {
 export function parse(s: string): ParserResult<AST.Expr> {
     const stream: TextStream = { fullText: s, position: 0 }
     const p = pMap(pSeq([
-        spaces0,
+        pSpaces0,
         pExpr,
-        spaces0,
+        pSpaces0,
     ]), x => x[1])
     
     return p(stream)

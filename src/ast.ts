@@ -5,9 +5,13 @@ export type Expr
     | { readonly t: "eInt", readonly v: number }
     | { readonly t: "eBool", readonly v: boolean }
     | { readonly t: "eApp", readonly f: Expr, readonly a: Expr }
-    | { readonly t: "eLam", readonly p: string, readonly r: Expr }
-    | { readonly t: "eLet", readonly b: string, readonly be: Expr, readonly r: Expr }
+    | { readonly t: "eLam", readonly p: Pattern, readonly r: Expr }
+    | { readonly t: "eLet", readonly b: Pattern, readonly be: Expr, readonly r: Expr }
     | { readonly t: "eTup", readonly es: readonly Expr[] }
+
+export type Pattern
+    = { readonly t: "pVar", readonly var: string }
+    | { readonly t: "pTup", readonly patterns: readonly Pattern[] }
 
 export type Type
     = { readonly t: "tInt" }
@@ -34,16 +38,24 @@ export function eApp(f: Expr, a: Expr): Expr {
     return { t: "eApp", f, a }
 }
 
-export function eLam(p: string, r: Expr): Expr {
+export function eLam(p: Pattern, r: Expr): Expr {
     return { t: "eLam", p, r }
 }
 
-export function eLet(b: string, be: Expr, r: Expr): Expr {
+export function eLet(b: Pattern, be: Expr, r: Expr): Expr {
     return { t: "eLet", b, be, r }
 }
 
 export function eTup(es: readonly Expr[]): Expr {
     return { t: "eTup", es }
+}
+
+export function pVar(v: string): Pattern {
+    return { t: "pVar", var: v }
+}
+
+export function pTup(patterns: readonly Pattern[]): Pattern {
+    return { t: "pTup", patterns }
 }
 
 export function isFunc(t: Type): boolean {
@@ -113,5 +125,12 @@ function renameVar(ty: Type, x: readonly [string, string]): Type {
             return { t: "tFunc", p: renameVar(ty.p, x), r: renameVar(ty.r, x) }
         case "tTup":
             return { t: "tTup", ts: ty.ts.map(t => renameVar(t, x)) }
+    }
+}
+
+export function prettyPattern(pat: Pattern): string {
+    switch (pat.t) {
+        case "pVar": return pat.var
+        case "pTup": return "(" + pat.patterns.map(prettyPattern).join(", ") + ")"
     }
 }

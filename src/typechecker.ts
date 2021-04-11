@@ -12,6 +12,8 @@ function applySubst(subst: Substitution, ty: Type) : Type {
             return subst.find(ty.v) ?? ty
         case "tFunc":
             return { t: "tFunc", p: applySubst(subst, ty.p), r: applySubst(subst, ty.r) }
+        case "tTup":
+            return { t: "tTup", ts: ty.ts.map(x => applySubst(subst, x)) }
         default:
             return ty
     }
@@ -25,14 +27,10 @@ function applySubstScheme(subst: Substitution, sch: Scheme): Scheme {
 }
 
 function composeSubst(s1: Substitution, s2: Substitution): Substitution {
-    // return s1
-    //     .toArray()
-    //     .map(x => [x[0], applySubst(s2, x[1])] as const)
-    //     .reduce((sub, x) => sub.insert(x[0], x[1]), s2)
-    return s2
+    return s1
         .toArray()
-        .map(x => [x[0], applySubst(s1, x[1])] as const)
-        .reduce((sub, x) => sub.insert(x[0], x[1]), s1)
+        .map(x => [x[0], applySubst(s2, x[1])] as const)
+        .reduce((sub, x) => sub.insert(x[0], x[1]), s2)
 }
 
 const newTyVar: () => Type = (() => {
@@ -40,12 +38,23 @@ const newTyVar: () => Type = (() => {
     return () => AST.tVar("u" + next++)
 })()
 
+function newTyVarPattern(pat: AST.Pattern): Type {
+    switch (pat.t) {
+        case "pVar":
+            return newTyVar()
+        case "pTup":
+            return AST.tTup(pat.patterns.map(newTyVarPattern))
+    }
+}
+
 function freeTypeVars(ty: Type): OrdSet<string> {
     switch (ty.t) {
         case "tVar":
             return OrdSet.string.of(ty.v)
         case "tFunc":
             return freeTypeVars(ty.p).union(freeTypeVars(ty.r))
+        case "tTup":
+            return ty.ts.reduce((cur, next) => cur.union(freeTypeVars(next)), OrdSet.string.empty())
         default:
             return OrdSet.string.empty()
     }
@@ -76,6 +85,12 @@ function unify(t1: Type, t2: Type): Substitution {
         const s1 = unify(t1.p, t2.p)
         const s2 = unify(applySubst(s1, t1.r), applySubst(s1, t2.r))
         return composeSubst(s2, s1)
+    }
+    if (t1.t === "tTup" && t2.t === "tTup" && t1.ts.length === t2.ts.length) {
+        return t1.ts.reduce(
+            (s, t, i) => composeSubst(s, unify(applySubst(s, t), applySubst(s, t2.ts[i]))),
+            emptySubst
+        )
     }
     throw "type mismatch between " + AST.prettyType(t1) + " and " + AST.prettyType(t2)
 }
@@ -123,15 +138,15 @@ function infer(ctx: Context, exp: Expr): readonly [Substitution, Type] {
             return [composeSubst(composeSubst(s3, s2), s1), applySubst(s3, tyRes)]
         }
         case "eLam": {
-            const tyBinder = newTyVar()
-            const tmpCtx = ctx.insert(exp.p, { vars: OrdSet.string.empty(), t: tyBinder })
+            const tyBinder = newTyVarPattern(exp.p)
+            const tmpCtx = match(ctx, exp.p, { vars: OrdSet.string.empty(), t: tyBinder })
             const [s1, tyBody] = infer(tmpCtx, exp.r)
             return [s1, AST.tFunc(applySubst(s1, tyBinder), tyBody)]
         }
         case "eLet": {
             const [s1, tyBinder] = infer(ctx, exp.be)
             const scheme = generalize(ctx, applySubst(s1, tyBinder))
-            const tmpCtx = ctx.insert(exp.b, scheme)
+            const tmpCtx = match(ctx, exp.b, scheme)
             const [s2, tyBody] = infer(applySubstCtx(s1, tmpCtx), exp.r)
             return [composeSubst(s2, s1), tyBody]
         }
@@ -141,6 +156,34 @@ function infer(ctx: Context, exp: Expr): readonly [Substitution, Type] {
             const t = AST.tTup(tupRes.map(([_, t]) => t))
             return [s, applySubst(s, t)]
         }
+    }
+}
+
+function match(ctx: Context, pat: AST.Pattern, sch: Scheme): Context {
+    console.log(`matching ${AST.prettyPattern(pat)} with ${AST.prettyScheme(sch)}`)
+    switch (pat.t) {
+        case "pTup":
+            switch (sch.t.t) {
+                case "tVar": {
+                    throw `what do we do here?`
+                }
+                case "tTup": {
+                    if (pat.patterns.length != sch.t.ts.length) {
+                        throw `tuple size mismatch. left is ${pat.patterns.length} while right is ${sch.t.ts.length}`
+                    }
+                    const ts = sch.t.ts
+                    // this is probably wrong... we should be filtering the Scheme's vars I think?
+                    return pat.patterns.reduce((c, p, i) => {
+                        freeTypeVars(ts[i])
+                        return match(c, p, { vars: sch.vars, t: ts[i] });
+                    }, ctx)
+                }
+                default: {
+                    throw `expected tuple, found ${AST.prettyScheme(sch)}`
+                }
+            }
+        case "pVar":
+            return ctx.insert(pat.var, sch)
     }
 }
 
