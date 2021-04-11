@@ -56,9 +56,6 @@ function freeTypeVarsScheme(sch: Scheme): OrdSet<string> {
 }
 
 function varBind(v: string, ty: Type): Substitution {
-    if (ty.t === "tVar" && ty.v === v) {
-        return emptySubst
-    }
     if (freeTypeVars(ty).has(v)){
         throw "occurs check failed"
     }
@@ -70,10 +67,10 @@ function unify(t1: Type, t2: Type): Substitution {
         return emptySubst
     }
     if (t1.t === "tVar") {
-        return emptySubst.insert(t1.v, t2)
+        return varBind(t1.v, t2)
     }
     if (t2.t === "tVar") {
-        return emptySubst.insert(t2.v, t1)
+        return varBind(t2.v, t1)
     }
     if (t1.t === "tFunc" && t2.t === "tFunc") {
         const s1 = unify(t1.p, t2.p)
