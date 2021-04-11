@@ -167,6 +167,16 @@ function pSeq<A>(ps: readonly Parser<A>[]): Parser<readonly A[]> {
     }
 }
 
+function pInterspersed<A>(sep: Parser<unknown>, p: Parser<A>): Parser<readonly A[]> {
+    return pOneOf<readonly A[]>([
+        pMap(pSeq([
+            p,
+            pList1(pSeq([sep, p])),
+        ]), x => [x[0], ...x[1].map(y => y[1])]),
+        pMap(p, x => [x]),
+    ])
+}
+
 const pInt: Parser<number> = pMap(pList1(pDigit), ns => ns.reduce((sum, n) => sum * 10 + n, 0))
 
 const RESERVED_SYMBOLS: readonly string[] = ["let", "in", "fn", "true", "false"]
@@ -177,12 +187,25 @@ const spaces0: Parser<null> = pMap(pList0(pSpace), _ => null)
 const spaces1: Parser<null> = pMap(pList1(pSpace), _ => null)
 
 
-const pBool: Parser<boolean> = pOneOf([
+const pBoolExpr: Parser<AST.Expr> = pMap(pOneOf([
     pReplace(true, pExact("true")),
     pReplace(false, pExact("false")),
-])
+]), AST.eBool)
+const pIntExpr: Parser<AST.Expr> = pMap(pInt, AST.eInt)
+const pVarExpr: Parser<AST.Expr> = pMap(pSymbol, AST.eVar)
 
-function pLam(s: TextStream): ParserResult<AST.Expr> {
+const pTupExpr: Parser<AST.Expr> = pMap(pSeq([
+    pExact("("),
+    pOneOf([
+        pMap(pSeq([
+            pInterspersed(pSeq([spaces0, pExact(","), spaces0]), pExpr),
+            pExact(")"),
+        ]), x => AST.eTup(x[0])),
+        pMap(pExact(")"), _ => AST.eTup([])),
+    ]),
+]), x => x[1])
+
+function pLamExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pMap(pSeq([
         pSeq([
             pExact("fn"),
@@ -200,7 +223,7 @@ function pLam(s: TextStream): ParserResult<AST.Expr> {
     return p(s)
 }
 
-function pLet(s: TextStream): ParserResult<AST.Expr> {
+function pLetExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pMap(pSeq([
         pSeq([
             pExact("let"),
@@ -224,23 +247,14 @@ function pLet(s: TextStream): ParserResult<AST.Expr> {
     return p(s)
 }
 
-function pInterspersed<A>(sep: Parser<unknown>, p: Parser<A>): Parser<readonly A[]> {
-    return pOneOf<readonly A[]>([
-        pMap(pSeq([
-            p,
-            pList1(pSeq([sep, p])),
-        ]), x => [x[0], ...x[1].map(y => y[1])]),
-        pMap(p, x => [x]),
-    ])
-}
-
-function pApplOrSymbol(s: TextStream): ParserResult<AST.Expr> {
+function pApplOrVarExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pOneOf<AST.Expr>([
-        pMap(pBool, AST.eBool),
-        pMap(pInt, AST.eInt),
-        pLam,
-        pLet,
-        pMap(pSymbol, AST.eVar),
+        pBoolExpr,
+        pIntExpr,
+        pLamExpr,
+        pLetExpr,
+        pTupExpr,
+        pVarExpr,
     ]);
     const p2 = pMap(pInterspersed(spaces1, p), exprs => {
         let e = exprs[0]
@@ -255,11 +269,12 @@ function pApplOrSymbol(s: TextStream): ParserResult<AST.Expr> {
 
 function pExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pOneOf<AST.Expr>([
-        pMap(pBool, AST.eBool),
-        pMap(pInt, AST.eInt),
-        pLam,
-        pLet,
-        pApplOrSymbol,
+        pBoolExpr,
+        pIntExpr,
+        pLamExpr,
+        pLetExpr,
+        pTupExpr,
+        pApplOrVarExpr,
     ])
     
     return p(s)

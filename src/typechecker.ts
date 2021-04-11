@@ -131,10 +131,15 @@ function infer(ctx: Context, exp: Expr): readonly [Substitution, Type] {
         case "eLet": {
             const [s1, tyBinder] = infer(ctx, exp.be)
             const scheme = generalize(ctx, applySubst(s1, tyBinder))
-            // const scheme: Scheme = { vars: OrdSet.string.empty(), t: applySubst(s1, tyBinder) }
             const tmpCtx = ctx.insert(exp.b, scheme)
             const [s2, tyBody] = infer(applySubstCtx(s1, tmpCtx), exp.r)
             return [composeSubst(s2, s1), tyBody]
+        }
+        case "eTup": {
+            const tupRes = exp.es.map(e => infer(ctx, e))
+            const s = tupRes.reduce((cur, [next]) => composeSubst(cur, next), emptySubst)
+            const t = AST.tTup(tupRes.map(([_, t]) => t))
+            return [s, applySubst(s, t)]
         }
     }
 }

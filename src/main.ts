@@ -6,8 +6,8 @@ const expr = `
 
 let f = fn x -> x in 
 let y = f false in
-let z = f 42 in
-f
+let z = f () in
+z
 `
 console.log(expr)
 const pRes = P.parse(expr)
