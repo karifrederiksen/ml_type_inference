@@ -8,6 +8,7 @@ export type Expr
     | { readonly t: "eLam", readonly p: Pattern, readonly r: Expr }
     | { readonly t: "eLet", readonly b: Pattern, readonly be: Expr, readonly r: Expr }
     | { readonly t: "eTup", readonly es: readonly Expr[] }
+    | { readonly t: "eIfElse", readonly cond: Expr, readonly caseTrue: Expr, readonly caseFalse: Expr }
 
 export type Pattern
     = { readonly t: "pVar", readonly var: string }
@@ -48,6 +49,10 @@ export function eLet(b: Pattern, be: Expr, r: Expr): Expr {
 
 export function eTup(es: readonly Expr[]): Expr {
     return { t: "eTup", es }
+}
+
+export function eIfElse(cond: Expr, caseTrue: Expr, caseFalse: Expr): Expr {
+    return { t: "eIfElse", cond, caseTrue, caseFalse }
 }
 
 export function pVar(v: string): Pattern {

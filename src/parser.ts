@@ -178,7 +178,16 @@ function pInterspersed<A>(sep: Parser<unknown>, p: Parser<A>): Parser<readonly A
 
 const pInt: Parser<number> = pMap(pList1(pDigit), ns => ns.reduce((sum, n) => sum * 10 + n, 0))
 
-const RESERVED_SYMBOLS: readonly string[] = ["let", "in", "fn", "true", "false"]
+const RESERVED_SYMBOLS: readonly string[] = [
+    "let",
+    "in",
+    "fn",
+    "true",
+    "false",
+    "if",
+    "then",
+    "else",
+]
 
 const pSymbol: Parser<string> = pAllowOnly(pMap(pList1(pChar), xs => xs.join("")), x => !RESERVED_SYMBOLS.includes(x))
 
@@ -201,7 +210,24 @@ const pTupExpr: Parser<AST.Expr> = pMap(pSeq([
     ]),
     pSpaces0,
     pExact(")"),
-]), x => AST.eTup(x[2]))
+]), x => {
+    const exprs = x[2]
+    return exprs.length === 1 ? exprs[0] : AST.eTup(exprs)
+})
+
+const pIfElseExpr: Parser<AST.Expr> = pMap(pSeq([
+    pExact("if"),
+    pSpaces1,
+    pExpr,
+    pSpaces1,
+    pExact("then"),
+    pSpaces1,
+    pExpr,
+    pSpaces1,
+    pExact("else"),
+    pSpaces1,
+    pExpr,
+]), x => AST.eIfElse(x[2], x[6], x[10]))
 
 function pLamExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pMap(pSeq([
@@ -227,7 +253,10 @@ const pTupPat: Parser<AST.Pattern> = pMap(pSeq([
     ]),
     pSpaces0,
     pExact(")"),
-]), x => AST.pTup(x[2]))
+]), x => {
+    const pats = x[2]
+    return pats.length === 1 ? pats[0] : AST.pTup(pats)
+})
 
 function pPattern(s: TextStream): ParserResult<AST.Pattern> {
     return pOneOf([pVarPat, pTupPat])(s)
@@ -259,6 +288,7 @@ function pApplOrVarExpr(s: TextStream): ParserResult<AST.Expr> {
         pLetExpr,
         pTupExpr,
         pVarExpr,
+        pIfElseExpr,
     ]);
     const p2 = pMap(pInterspersed(pSpaces1, p), exprs => {
         let e = exprs[0]
@@ -278,6 +308,7 @@ function pExpr(s: TextStream): ParserResult<AST.Expr> {
         pLamExpr,
         pLetExpr,
         pTupExpr,
+        pIfElseExpr,
         pApplOrVarExpr,
     ])
     

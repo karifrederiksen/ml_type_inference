@@ -137,6 +137,18 @@ function infer(ctx: Context, exp: Expr): readonly [Substitution, Type] {
             const s3 = unify(applySubst(s2, tyFun), AST.tFunc(tyArg, tyRes))
             return [composeSubst(composeSubst(s3, s2), s1), applySubst(s3, tyRes)]
         }
+        case "eIfElse": {
+            const [s1, tyCond] = infer(ctx, exp.cond)
+            const s1_ = unify(tyCond, AST.tBool())
+            const s2 = composeSubst(s1, s1_)
+
+            const ctx2 = applySubstCtx(s2, ctx)
+            const [s3, ty1] = infer(ctx2, exp.caseTrue)
+            const [s4, ty2] = infer(ctx2, exp.caseFalse)
+            const s5 = unify(ty1, ty2)
+            const s = composeSubst(composeSubst(s5, s4), composeSubst(s3, s2))
+            return [s, applySubst(s, ty1)]
+        }
         case "eLam": {
             const tyBinder = newTyVarPattern(exp.p)
             const tmpCtx = match(ctx, exp.p, { vars: OrdSet.string.empty(), t: tyBinder })
@@ -160,7 +172,6 @@ function infer(ctx: Context, exp: Expr): readonly [Substitution, Type] {
 }
 
 function match(ctx: Context, pat: AST.Pattern, sch: Scheme): Context {
-    console.log(`matching ${AST.prettyPattern(pat)} with ${AST.prettyScheme(sch)}`)
     switch (pat.t) {
         case "pTup":
             switch (sch.t.t) {
@@ -195,9 +206,13 @@ export function typeInference(ctx: Context, exp: Expr): Type {
 export const emptyContext: Context = OrdMap.string.empty()
 
 export function preludeContext(): Context {
+    const xxb = { vars: OrdSet.string.of("a"), t: AST.tFunc(AST.tVar("a"), AST.tFunc(AST.tVar("a"), AST.tBool()))}
+    const iii = { vars: OrdSet.string.empty(), t: AST.tFunc(AST.tInt(), AST.tFunc(AST.tInt(), AST.tInt()))}
     const xs: readonly (readonly [string, Scheme])[] = [
-        ["add", { vars: OrdSet.string.empty(), t: AST.tFunc(AST.tInt(), AST.tFunc(AST.tInt(), AST.tInt()))} ],
-        ["if", { vars: OrdSet.string.of("a"), t: AST.tFunc(AST.tBool(), AST.tFunc(AST.tVar("a"), AST.tFunc(AST.tVar("a"), AST.tVar("a")))) }  ]
+        ["eq", xxb ],
+        ["add", iii ],
+        ["sub", iii ],
+        ["mul", iii ],
     ]
     return OrdMap.string.from(xs)
 }
