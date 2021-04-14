@@ -9,8 +9,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ordered-collections": "git+https://github.com/karifrederiksen/ordered-collections.git",
-    "ts-node": "^9.1.1",
-    "typescript": "^4.2.4"
+    "ordered-collections": "git+https://github.com/karifrederiksen/ordered-collections.git#43085bdb15e8023582820c231764082d57df8f8a",
+    "ts-node": "9.1.1",
+    "typescript": "4.2.4"
   }
 }
