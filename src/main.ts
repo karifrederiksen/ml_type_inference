@@ -23,4 +23,3 @@ if (!pRes.ok) {
 }
 const type = TC.typeInference(TC.preludeContext(), pRes.val)
 console.log(AST.prettyType(type))
-
