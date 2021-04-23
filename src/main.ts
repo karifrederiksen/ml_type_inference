@@ -4,16 +4,22 @@ import * as TC from "./typechecker"
 import * as CG from "./codegen"
 
 const expr = `
-let id     = fn x -> x in 
-let apply  = fn (f, x) -> f x in
-let (a, b) = apply (id, (2, true)) in
-let f      =
+let id x =
+    x
+in
+let apply (f, x) =
+    f x
+in
+let (a, b) =
+    apply (id, (2, true))
+in
+let f =
     if b then
         fn x -> mul x x
     else
         mul 1
 in
-let fact = fn n ->
+let fact n =
     if eq n 0 then
         1
     else

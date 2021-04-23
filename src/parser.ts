@@ -245,6 +245,41 @@ function pSeq<A, B, C, D, E, F, G, H, J, K, L, M>(
         Parser<M>,
     ],
 ): Parser<readonly [A, B, C, D, E, F, G, H, J, K, L, M]>
+function pSeq<A, B, C, D, E, F, G, H, J, K, L, M, N>(
+    ps: readonly [
+        Parser<A>,
+        Parser<B>,
+        Parser<C>,
+        Parser<D>,
+        Parser<E>,
+        Parser<F>,
+        Parser<G>,
+        Parser<H>,
+        Parser<J>,
+        Parser<K>,
+        Parser<L>,
+        Parser<M>,
+        Parser<N>,
+    ],
+): Parser<readonly [A, B, C, D, E, F, G, H, J, K, L, M, N]>
+function pSeq<A, B, C, D, E, F, G, H, J, K, L, M, N, O>(
+    ps: readonly [
+        Parser<A>,
+        Parser<B>,
+        Parser<C>,
+        Parser<D>,
+        Parser<E>,
+        Parser<F>,
+        Parser<G>,
+        Parser<H>,
+        Parser<J>,
+        Parser<K>,
+        Parser<L>,
+        Parser<M>,
+        Parser<N>,
+        Parser<O>,
+    ],
+): Parser<readonly [A, B, C, D, E, F, G, H, J, K, L, M, N, O]>
 function pSeq<A>(ps: readonly Parser<A>[]): Parser<readonly A[]> {
     return (s) => {
         const vals: A[] = []
@@ -398,12 +433,41 @@ function pLetExpr(s: TextStream): ParserResult<AST.Expr> {
     return p(s)
 }
 
+function pLetFunc(s: TextStream): ParserResult<AST.Expr> {
+    const p = pMap(
+        pSeq([
+            pExact("let"),
+            pSpaces1,
+            pSymbol,
+            pSpaces1,
+            pPattern,
+            pSpaces0,
+            pExact("="),
+            pSpaces0,
+            pExpr,
+            pSpaces1,
+            pExact("in"),
+            pSpaces1,
+            pExpr,
+        ]),
+        (x) => {
+            const id = x[2]
+            const pat = x[4]
+            const expr = x[8]
+            const exprNext = x[12]
+            return AST.eLet(AST.pVar(id), AST.eLam(pat, expr), exprNext)
+        },
+    )
+
+    return p(s)
+}
 function pApplOrVarExpr(s: TextStream): ParserResult<AST.Expr> {
     const p = pOneOf<AST.Expr>([
         pBoolExpr,
         pIntExpr,
         pLamExpr,
         pLetExpr,
+        pLetFunc,
         pTupExpr,
         pVarExpr,
         pIfElseExpr,
