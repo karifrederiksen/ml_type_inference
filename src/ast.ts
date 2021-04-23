@@ -167,3 +167,65 @@ export function prettyPattern(pat: Pattern): string {
             return "(" + pat.patterns.map(prettyPattern).join(", ") + ")"
     }
 }
+
+export function pretty(expr: Expr): string {
+    return prettyHlp(expr, "")
+}
+
+const IND_SINGLE = "    "
+
+function prettyHlp(expr: Expr, ind: string): string {
+    const indNext = ind + IND_SINGLE
+    switch (expr.t) {
+        case "eApp":
+            return (
+                "(" +
+                prettyHlp(expr.f, indNext) +
+                " " +
+                prettyHlp(expr.a, indNext) +
+                ")"
+            )
+        case "eBool":
+            return expr.v ? "True" : "False"
+        case "eIfElse":
+            return (
+                "if " +
+                prettyHlp(expr.cond, indNext) +
+                " then\n" +
+                indNext +
+                prettyHlp(expr.caseTrue, indNext) +
+                "\n" +
+                ind +
+                "else\n" +
+                indNext +
+                prettyHlp(expr.caseFalse, indNext)
+            )
+        case "eInt":
+            return expr.v.toString()
+        case "eLam":
+            return (
+                "fn " +
+                prettyPattern(expr.p) +
+                " ->\n" +
+                indNext +
+                prettyHlp(expr.r, indNext)
+            )
+        case "eLet":
+            return (
+                "let " +
+                prettyPattern(expr.b) +
+                " =\n" +
+                indNext +
+                prettyHlp(expr.be, indNext) +
+                "\n" +
+                ind +
+                "in\n" +
+                ind +
+                prettyHlp(expr.r, ind)
+            )
+        case "eTup":
+            return "(" + expr.es.map(pretty).join(", ") + ")"
+        case "eVar":
+            return expr.v
+    }
+}

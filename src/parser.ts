@@ -119,6 +119,10 @@ function pReplace<A>(val: A, p: Parser<unknown>): Parser<A> {
     }
 }
 
+function pIgnore(p: Parser<unknown>): Parser<null> {
+    return pReplace(null, p)
+}
+
 function pExact<A extends string>(tag: A): Parser<A> {
     return (s) => {
         let rest = s
@@ -317,8 +321,8 @@ const RESERVED_SYMBOLS: readonly string[] = [
     "let",
     "in",
     "fn",
-    "true",
-    "false",
+    "True",
+    "False",
     "if",
     "then",
     "else",
@@ -329,11 +333,50 @@ const pSymbol: Parser<string> = pAllowOnly(
     (x) => !RESERVED_SYMBOLS.includes(x),
 )
 
-const pSpaces0: Parser<null> = pReplace(null, pList0(pSpace))
-const pSpaces1: Parser<null> = pReplace(null, pList1(pSpace))
+function pLineComment(s: TextStream): ParserResult<unknown> {
+    const startP = pExact("--")
+    const start = startP(s)
+    if (!start.ok) {
+        return start
+    }
+    let rest = start.rest
+
+    const endP = pExact("\n")
+    while (rest.position < rest.fullText.length) {
+        const end = endP(rest)
+        if (end.ok) {
+            return end
+        }
+        rest = streamNext(rest)[1]
+    }
+    return err
+}
+function pMultiLineComment(s: TextStream): ParserResult<unknown> {
+    const startP = pExact("{-")
+    const start = startP(s)
+    if (!start.ok) {
+        return start
+    }
+    let rest = start.rest
+
+    const endP = pExact("-}")
+    while (rest.position < rest.fullText.length) {
+        const end = endP(rest)
+        if (end.ok) {
+            return end
+        }
+        rest = streamNext(rest)[1]
+    }
+    return err
+}
+
+const pSpaceOrComment = pOneOf([pSpace, pLineComment, pMultiLineComment])
+
+const pSpaces0: Parser<null> = pIgnore(pList0(pSpaceOrComment))
+const pSpaces1: Parser<null> = pIgnore(pList1(pSpaceOrComment))
 
 const pBoolExpr: Parser<AST.Expr> = pMap(
-    pOneOf([pReplace(true, pExact("true")), pReplace(false, pExact("false"))]),
+    pOneOf([pReplace(true, pExact("True")), pReplace(false, pExact("False"))]),
     AST.eBool,
 )
 const pIntExpr: Parser<AST.Expr> = pMap(pInt, AST.eInt)
